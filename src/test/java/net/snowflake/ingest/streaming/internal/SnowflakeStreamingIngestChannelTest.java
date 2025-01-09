@@ -141,7 +141,7 @@ public class SnowflakeStreamingIngestChannelTest {
             .setChannelSequencer((Long) fields[5])
             .setOwningClient((SnowflakeStreamingIngestClientInternal<StubChunkData>) fields[6])
             .setDefaultTimezone((ZoneId) fields[7])
-            .build();
+            .build(false);
         Assert.fail("Channel factory should fail with null fields");
       } catch (SFException e) {
         Assert.assertTrue(
@@ -176,7 +176,7 @@ public class SnowflakeStreamingIngestChannelTest {
             .setEncryptionKeyId(1234L)
             .setOnErrorOption(OpenChannelRequest.OnErrorOption.CONTINUE)
             .setDefaultTimezone(UTC)
-            .build();
+            .build(false);
 
     Assert.assertEquals(name, channel.getName());
     Assert.assertEquals(dbName, channel.getDBName());
@@ -184,7 +184,7 @@ public class SnowflakeStreamingIngestChannelTest {
     Assert.assertEquals(tableName, channel.getTableName());
     Assert.assertEquals(offsetToken, channel.getChannelState().getEndOffsetToken());
     Assert.assertEquals(channelSequencer, channel.getChannelSequencer());
-    Assert.assertEquals(rowSequencer + 1L, ((ChannelRuntimeStateImpl)channel.getChannelState()).incrementAndGetRowSequencer());
+    Assert.assertEquals(rowSequencer + 1L, ((ChannelRuntimeState)channel.getChannelState()).incrementAndGetRowSequencer());
     Assert.assertEquals(
         String.format("%s.%s.%s.%s", dbName, schemaName, tableName, name),
         channel.getFullyQualifiedName());

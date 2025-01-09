@@ -58,7 +58,7 @@ class SnowflakeStreamingIngestChannelInternal<T> implements SnowflakeStreamingIn
   private final SnowflakeStreamingIngestClientInternal<T> owningClient;
 
   // State of the channel that will be shared with its underlying buffer
-  private final ChannelRuntimeStateImpl channelState;
+  private final ChannelRuntimeState channelState;
 
   // Internal map of column name -> column properties
   private final Map<String, ColumnProperties> tableColumns;
@@ -103,7 +103,7 @@ class SnowflakeStreamingIngestChannelInternal<T> implements SnowflakeStreamingIn
     this.channelFlushContext =
         new ChannelFlushContext(
             name, dbName, schemaName, tableName, channelSequencer, encryptionKey, encryptionKeyId);
-    this.channelState = new ChannelRuntimeStateImpl(endOffsetToken, rowSequencer, true);
+    this.channelState = new ChannelRuntimeState(endOffsetToken, rowSequencer, true);
     this.rowBuffer =
         createRowBuffer(
             onErrorOption,

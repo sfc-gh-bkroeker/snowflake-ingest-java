@@ -90,6 +90,7 @@ class ObservabilityBlobDataBuilder {
           totalCurrentBlobSizeInBytes,
           totalBufferSizeInBytes,
           parameterProvider.getMaxChunkSizeInBytes(),
+          parameterProvider.getMinChunkSizeInBytes(),
           currentClusteringKey,
           prevClusteringKey,
           channelData,
@@ -158,10 +159,17 @@ class ObservabilityBlobDataBuilder {
       float totalBufferSizeInBytes,
       float totalBufferSizePerTableInBytes,
       float maxChunkSizeInBytes,
+      float minChunkSizeInBytes,
       ObservabilityClusteringKey currentKey,
       ObservabilityClusteringKey prevKey,
       ChannelData<ParquetChunkData> current,
       ChannelData<ParquetChunkData> prev) {
+    // if we're over our min chunk size and the keys are different then cut this one off
+    if (currentKey != null && !current.equals(prevKey)) {
+      if (totalBufferSizeInBytes >= minChunkSizeInBytes) {
+        return true;
+      }
+    }
 
     return totalBufferSizeInBytes + current.getBufferSize() > MAX_BLOB_SIZE_IN_BYTES
         || totalBufferSizePerTableInBytes + current.getBufferSize() > maxChunkSizeInBytes

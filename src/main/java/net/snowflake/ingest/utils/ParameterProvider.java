@@ -33,6 +33,7 @@ public class ParameterProvider {
   // This should not be needed once we have the ability to track size at table/chunk level
   public static final String MAX_CHANNEL_SIZE_IN_BYTES = "MAX_CHANNEL_SIZE_IN_BYTES".toLowerCase();
   public static final String MAX_CHUNK_SIZE_IN_BYTES = "MAX_CHUNK_SIZE_IN_BYTES".toLowerCase();
+  public static final String MIN_CHUNK_SIZE_IN_BYTES = "MIN_CHUNK_SIZE_IN_BYTES".toLowerCase();
   public static final String MAX_ALLOWED_ROW_SIZE_IN_BYTES =
       "MAX_ALLOWED_ROW_SIZE_IN_BYTES".toLowerCase();
   public static final String MAX_CHUNKS_IN_BLOB = "MAX_CHUNKS_IN_BLOB".toLowerCase();
@@ -62,6 +63,7 @@ public class ParameterProvider {
   public static final long MAX_MEMORY_LIMIT_IN_BYTES_DEFAULT = -1L;
   public static final long MAX_CHANNEL_SIZE_IN_BYTES_DEFAULT = 64 * 1024 * 1024;
   public static final long MAX_CHUNK_SIZE_IN_BYTES_DEFAULT = 256 * 1024 * 1024;
+  public static final long MIN_CHUNK_SIZE_IN_BYTES_DEFAULT = 5 * 1024 * 1024;
 
   // Lag related parameters
   public static final long MAX_CLIENT_LAG_DEFAULT = 1000; // 1 second
@@ -460,6 +462,13 @@ public class ParameterProvider {
   public long getMaxChunkSizeInBytes() {
     Object val =
         this.parameterMap.getOrDefault(MAX_CHUNK_SIZE_IN_BYTES, MAX_CHUNK_SIZE_IN_BYTES_DEFAULT);
+    return (val instanceof String) ? Long.parseLong(val.toString()) : (long) val;
+  }
+
+  /** @return The min chunk size in bytes before combining with other chunks */
+  public long getMinChunkSizeInBytes() {
+    Object val =
+        this.parameterMap.getOrDefault(MIN_CHUNK_SIZE_IN_BYTES, MIN_CHUNK_SIZE_IN_BYTES_DEFAULT);
     return (val instanceof String) ? Long.parseLong(val.toString()) : (long) val;
   }
 
