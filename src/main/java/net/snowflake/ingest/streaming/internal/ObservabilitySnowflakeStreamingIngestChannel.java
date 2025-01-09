@@ -30,7 +30,7 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
     private final ChannelFlushContext channelFlushContext;
 
     // Reference to the row buffer
-    private final HashMap<ObservabilityClusteringKey, RowBuffer<ParquetChunkData>> rowBufferMap;
+    private final HashMap<ObservabilityClusteringKey, ObservabilityParquetRowBuffer> rowBufferMap;
     private final long insertThrottleIntervalInMs;
     private final int insertThrottleThresholdInBytes;
     private final int insertThrottleThresholdInPercentage;
@@ -44,10 +44,12 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
     private final SnowflakeStreamingIngestClientInternal<ParquetChunkData> owningClient;
 
     // State of the channel that will be shared with its underlying buffer
-    private final ObservabilityChannelState channelState;
+    private final ChannelRuntimeState channelState;
 
     // Internal map of column name -> column properties
     private final Map<String, ColumnProperties> tableColumns;
+
+    private List<ColumnMetadata> schema;
 
     // The latest cause of channel invalidation
     private String invalidationCause;
@@ -88,12 +90,12 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
                 new ChannelFlushContext(
                         name, dbName, schemaName, tableName, channelSequencer, encryptionKey, encryptionKeyId);
 
-        this.channelState = new ObservabilityChannelState(endOffsetToken, rowSequencer, true);
+        this.channelState = new ChannelRuntimeState(endOffsetToken, rowSequencer, true);
         this.rowBufferMap = new HashMap<>();
         this.tableColumns = new HashMap<>();
 
         this.addRowBuffer = (ObservabilityClusteringKey key) -> {
-            RowBuffer<ParquetChunkData> buffer = createRowBuffer(
+            ObservabilityParquetRowBuffer buffer = createRowBuffer(
                 key,
                 onErrorOption,
                 defaultTimezone,
@@ -105,9 +107,10 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
                 offsetTokenVerificationFunction,
                 parquetWriterVersion,
                 owningClient.getTelemetryService());
-
+            if (schema != null && !schema.isEmpty()) {
+                buffer.setupSchema(schema);
+            }
             rowBufferMap.put(key, buffer);
-
             return buffer;
         };
 
@@ -121,7 +124,7 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
     /**
      * Row buffer factory.
      */
-    private static RowBuffer<ParquetChunkData> createRowBuffer(
+    private static ObservabilityParquetRowBuffer createRowBuffer(
         ObservabilityClusteringKey key,
         OpenChannelRequest.OnErrorOption onErrorOption,
         ZoneId defaultTimezone,
@@ -220,13 +223,21 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
     public List<ChannelData<ParquetChunkData>> getData() {
         return this.rowBufferMap.values().stream()
             .map(r -> {
-                ChannelData<ParquetChunkData> channelData = r.flush();
+                ObservabilityChannelData channelData = (ObservabilityChannelData)r.flush();
                 if (channelData != null) {
                     channelData.setChannelContext(channelFlushContext);
                 }
                 return channelData;
             })
             .filter(Objects::nonNull)
+            .sorted((a, b) -> {
+                // sort buffers by the clustering key
+                ObservabilityClusteringKey ka = a.getClusteringKey();
+                if (ka != null) return ka.compareTo(b.getClusteringKey());
+                else if (b.getClusteringKey() != null) return -1;
+
+                return 0;
+            })
             .collect(Collectors.toList());
     }
 
@@ -239,7 +250,7 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
     /** Mark the channel as invalid, and release resources */
     @Override
     public void invalidate(String message, String invalidationCause) {
-        this.channelState.setValid(false);
+        this.channelState.invalidate();
         this.invalidationCause = invalidationCause;
         this.rowBufferMap.clear();
         logger.logWarn(
@@ -349,7 +360,11 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
     public void setupSchema(List<ColumnMetadata> columns) {
         logger.logDebug("Setup schema for channel={}, schema={}", getFullyQualifiedName(), columns);
         tableColumns.clear();
+        schema = columns;
+
         columns.forEach(c -> tableColumns.putIfAbsent(c.getName(), new ColumnProperties(c)));
+
+        rowBufferMap.values().stream().forEach(b -> b.setupSchema(columns));
     }
 
     /**

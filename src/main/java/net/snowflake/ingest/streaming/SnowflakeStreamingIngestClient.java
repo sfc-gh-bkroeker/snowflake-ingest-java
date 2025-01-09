@@ -25,6 +25,8 @@ public interface SnowflakeStreamingIngestClient extends AutoCloseable {
    */
   SnowflakeStreamingIngestChannel openChannel(OpenChannelRequest request);
 
+  SnowflakeStreamingIngestChannel openObsChannel(OpenChannelRequest request);
+
   /**
    * Drop the specified channel on the server using a {@link DropChannelRequest}
    *

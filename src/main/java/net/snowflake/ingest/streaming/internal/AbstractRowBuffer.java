@@ -324,7 +324,7 @@ abstract class AbstractRowBuffer<T> implements RowBuffer<T> {
   private final Consumer<Float> rowSizeMetric;
 
   // State of the owning channel
-  final ChannelRuntimeStateImpl channelState;
+  final ChannelRuntimeState channelState;
 
   // ON_ERROR option for this channel
   final OpenChannelRequest.OnErrorOption onErrorOption;
@@ -352,7 +352,7 @@ abstract class AbstractRowBuffer<T> implements RowBuffer<T> {
     this.onErrorOption = onErrorOption;
     this.defaultTimezone = defaultTimezone;
     this.rowSizeMetric = rowSizeMetric;
-    this.channelState = (ChannelRuntimeStateImpl)channelRuntimeState;
+    this.channelState = channelRuntimeState;
     this.channelFullyQualifiedName = fullyQualifiedChannelName;
     this.nonNullableFieldNames = new HashSet<>();
     this.flushLock = new ReentrantLock(true);

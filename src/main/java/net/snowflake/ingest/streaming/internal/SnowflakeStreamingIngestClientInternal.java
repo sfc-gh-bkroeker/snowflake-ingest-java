@@ -323,14 +323,23 @@ public class SnowflakeStreamingIngestClientInternal<T> implements SnowflakeStrea
     return isClosed;
   }
 
+  @Override
+  public SnowflakeStreamingIngestChannelFlushable<?> openChannel(OpenChannelRequest request) {
+    return openChannelImpl(request, false);
+  }
+
+  @Override
+  public SnowflakeStreamingIngestChannelFlushable<?> openObsChannel(OpenChannelRequest request) {
+    return openChannelImpl(request, true);
+  }
+
   /**
    * Open a channel against a Snowflake table
    *
    * @param request the open channel request
    * @return a SnowflakeStreamingIngestChannel object
    */
-  @Override
-  public SnowflakeStreamingIngestChannelFlushable<?> openChannel(OpenChannelRequest request) {
+  private SnowflakeStreamingIngestChannelFlushable<?> openChannelImpl(OpenChannelRequest request, boolean useObservabilityChannel) {
     if (isClosed) {
       throw new SFException(ErrorCode.CLOSED_CLIENT);
     }
@@ -402,7 +411,7 @@ public class SnowflakeStreamingIngestClientInternal<T> implements SnowflakeStrea
                             response.getIcebergSerializationPolicy())
                         .toParquetWriterVersion()
                     : ParquetProperties.WriterVersion.PARQUET_1_0)
-            .build();
+            .build(useObservabilityChannel);
 
     // Setup the row buffer schema
     channel.setupSchema(response.getTableColumns());

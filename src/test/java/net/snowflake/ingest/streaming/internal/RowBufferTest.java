@@ -208,7 +208,7 @@ public class RowBufferTest {
   }
 
   private AbstractRowBuffer<?> createTestBuffer(OpenChannelRequest.OnErrorOption onErrorOption) {
-    ChannelRuntimeStateImpl initialState = new ChannelRuntimeStateImpl("0", 0L, true);
+    ChannelRuntimeState initialState = new ChannelRuntimeState("0", 0L, true);
     return SnowflakeStreamingIngestChannelInternal.createRowBuffer(
         onErrorOption,
         UTC,

@@ -106,7 +106,7 @@ class SnowflakeStreamingIngestChannelFactory {
       return this;
     }
 
-    SnowflakeStreamingIngestChannelFlushable<T> build() {
+    SnowflakeStreamingIngestChannelFlushable<T> build(boolean useObservabilityChannel) {
       Utils.assertStringNotNullOrEmpty("channel name", this.name);
       Utils.assertStringNotNullOrEmpty("table name", this.tableName);
       Utils.assertStringNotNullOrEmpty("schema name", this.schemaName);
@@ -119,7 +119,26 @@ class SnowflakeStreamingIngestChannelFactory {
       Utils.assertNotNull("on_error option", this.onErrorOption);
       Utils.assertNotNull("default timezone", this.defaultTimezone);
 
-      ObservabilitySnowflakeStreamingIngestChannel channel = new ObservabilitySnowflakeStreamingIngestChannel(
+      if (useObservabilityChannel) {
+        ObservabilitySnowflakeStreamingIngestChannel channel = new ObservabilitySnowflakeStreamingIngestChannel(
+            this.name,
+            this.dbName,
+            this.schemaName,
+            this.tableName,
+            this.offsetToken,
+            this.channelSequencer,
+            this.rowSequencer,
+            (SnowflakeStreamingIngestClientInternal<ParquetChunkData>) this.owningClient,
+            this.encryptionKey,
+            this.encryptionKeyId,
+            this.onErrorOption,
+            this.defaultTimezone,
+            this.offsetTokenVerificationFunction,
+            this.parquetWriterVersion);
+        return (SnowflakeStreamingIngestChannelFlushable<T>)channel;
+      }
+
+      SnowflakeStreamingIngestChannelInternal<T> channel = new SnowflakeStreamingIngestChannelInternal(
           this.name,
           this.dbName,
           this.schemaName,
@@ -127,15 +146,15 @@ class SnowflakeStreamingIngestChannelFactory {
           this.offsetToken,
           this.channelSequencer,
           this.rowSequencer,
-          (SnowflakeStreamingIngestClientInternal<ParquetChunkData>)this.owningClient,
+          this.owningClient,
           this.encryptionKey,
           this.encryptionKeyId,
           this.onErrorOption,
           this.defaultTimezone,
           this.offsetTokenVerificationFunction,
           this.parquetWriterVersion);
+      return channel;
 
-      return (SnowflakeStreamingIngestChannelFlushable<T>)channel;
     }
   }
 }
