@@ -257,6 +257,13 @@ public class ParameterProvider {
         false /* enforceDefault */);
 
     this.checkAndUpdate(
+        MIN_CHUNK_SIZE_IN_BYTES,
+        MIN_CHUNK_SIZE_IN_BYTES_DEFAULT,
+        parameterOverrides,
+        props,
+        false /* enforceDefault */);
+
+    this.checkAndUpdate(
         BDEC_PARQUET_COMPRESSION_ALGORITHM,
         isEnableIcebergStreaming()
             ? ICEBERG_PARQUET_COMPRESSION_ALGORITHM_DEFAULT
@@ -469,7 +476,7 @@ public class ParameterProvider {
   public long getMinChunkSizeInBytes() {
     Object val =
         this.parameterMap.getOrDefault(MIN_CHUNK_SIZE_IN_BYTES, MIN_CHUNK_SIZE_IN_BYTES_DEFAULT);
-    return (val instanceof String) ? Long.parseLong(val.toString()) : (long) val;
+    return (val instanceof Long) ? Long.parseLong(val.toString()) : (long) val;
   }
 
   public long getMaxAllowedRowSizeInBytes() {

@@ -231,7 +231,6 @@ class ObservabilitySnowflakeStreamingIngestChannel implements SnowflakeStreaming
             })
             .filter(Objects::nonNull)
             .sorted((a, b) -> {
-
                 // sort buffers by the clustering key
                 ObservabilityClusteringKey ka = a.getClusteringKey();
                 if (ka != null) return ka.compareTo(b.getClusteringKey());

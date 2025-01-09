@@ -1,5 +1,6 @@
 package net.snowflake.ingest.streaming.internal;
 
+import net.snowflake.ingest.streaming.ObservabilityClusteringKey;
 import net.snowflake.ingest.utils.Logging;
 import net.snowflake.ingest.utils.ParameterProvider;
 
@@ -27,6 +28,7 @@ class BlobDataBuilder<T> {
   private final String clientName;
   private List<List<ChannelData<T>>> currentBlob;
   private ChannelData<T> prevChannelData = null;
+  private ObservabilityClusteringKey prevClusteringKey = null;
   private float totalCurrentBlobSizeInBytes = 0F;
   private float totalBufferSizeInBytes = 0F;
 
@@ -82,9 +84,15 @@ class BlobDataBuilder<T> {
     int i, start = 0;
     for (i = 0; i < chunkData.size(); i++) {
       ChannelData<T> channelData = chunkData.get(i);
+      ObservabilityClusteringKey currentClusteringKey = createObsKeyFromChannelData(channelData);
+
       if (prevChannelData != null && shouldStopProcessing(
           totalCurrentBlobSizeInBytes,
           totalBufferSizeInBytes,
+          parameterProvider.getMaxChunkSizeInBytes(),
+          parameterProvider.getMinChunkSizeInBytes(),
+          currentClusteringKey,
+          prevClusteringKey,
           channelData,
           prevChannelData)) {
         logger.logInfo(
@@ -113,11 +121,19 @@ class BlobDataBuilder<T> {
       totalCurrentBlobSizeInBytes += channelData.getBufferSize();
       totalBufferSizeInBytes += channelData.getBufferSize();
       prevChannelData = channelData;
+      prevClusteringKey = currentClusteringKey;
     }
 
     if (i != start) {
       currentBlob.add(chunkData.subList(start, i));
     }
+  }
+
+  private ObservabilityClusteringKey createObsKeyFromChannelData(ChannelData<T> channelData) {
+    if (channelData instanceof ObservabilityChannelData) {
+      return ((ObservabilityChannelData)channelData).getClusteringKey();
+    }
+    return null;
   }
 
   private void addCurrentBlob() {
@@ -139,14 +155,26 @@ class BlobDataBuilder<T> {
    *
    * <p>When the schemas are not the same
    */
-  private boolean shouldStopProcessing(
+  private static <TData> boolean shouldStopProcessing(
       float totalBufferSizeInBytes,
       float totalBufferSizePerTableInBytes,
-      ChannelData<T> current,
-      ChannelData<T> prev) {
+      float maxChunkSizeInBytes,
+      float minChunkSizeInBytes,
+      ObservabilityClusteringKey currentKey,
+      ObservabilityClusteringKey prevKey,
+      ChannelData<TData> current,
+      ChannelData<TData> prev) {
+    // if we're over our min chunk size and the keys are different then cut this one off
+    if (currentKey != null && !currentKey.equals(prevKey)) {
+      if (totalBufferSizeInBytes >= minChunkSizeInBytes) {
+        return true;
+      }
+    } else if (currentKey == null && prevKey != null) {
+      return true;
+    }
+
     return totalBufferSizeInBytes + current.getBufferSize() > MAX_BLOB_SIZE_IN_BYTES
-        || totalBufferSizePerTableInBytes + current.getBufferSize()
-        > parameterProvider.getMaxChunkSizeInBytes()
+        || totalBufferSizePerTableInBytes + current.getBufferSize() > maxChunkSizeInBytes
         || !Objects.equals(
         current.getChannelContext().getEncryptionKeyId(),
         prev.getChannelContext().getEncryptionKeyId())

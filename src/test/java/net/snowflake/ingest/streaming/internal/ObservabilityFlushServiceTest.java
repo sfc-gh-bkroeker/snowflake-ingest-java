@@ -57,6 +57,7 @@ import net.snowflake.ingest.utils.SFException;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -454,6 +455,16 @@ public class ObservabilityFlushServiceTest {
     return colChar;
   }
 
+  private static ColumnMetadata createObjectColumn(String name) {
+    ColumnMetadata colObject = new ColumnMetadata();
+    colObject.setOrdinal(2);
+    colObject.setName(name);
+    colObject.setPhysicalType("LOB");
+    colObject.setNullable(true);
+    colObject.setLogicalType("OBJECT");
+    return colObject;
+  }
+
   @Test
   public void testGetFilePath() {
     // SNOW-1490151 Iceberg testing gaps
@@ -755,6 +766,18 @@ public class ObservabilityFlushServiceTest {
   }
 
   @Test
+  public void testBlobSplitDueToDifferentObservabilityKeys() throws Exception {
+    // SNOW-1490151 Iceberg testing gaps
+    if (enableIcebergStreaming) {
+      return;
+    }
+
+    for (int rowCount : Arrays.asList(0, 1, 30, 111, 159, 287, 1287, 1599, 4496)) {
+      runTestBlobSplitDueToNumberOfKeys(rowCount);
+    }
+  }
+
+  @Test
   public void testBlobSplitDueToNumberOfChunks() throws Exception {
     // SNOW-1490151 Iceberg testing gaps
     if (enableIcebergStreaming) {
@@ -765,6 +788,47 @@ public class ObservabilityFlushServiceTest {
       runTestBlobSplitDueToNumberOfChunks(rowCount);
     }
   }
+
+  public void runTestBlobSplitDueToNumberOfKeys(int numberOfRows) throws Exception {
+    int rowsPerKey = 3;
+    int expectedBlobs =
+        (int)
+            Math.ceil(
+                (double) numberOfRows
+                    / rowsPerKey);
+//                    / (enableIcebergStreaming
+//                    ? ParameterProvider.MAX_CHUNKS_IN_BLOB_ICEBERG_MODE_DEFAULT
+//                    : ParameterProvider.MAX_CHUNKS_IN_BLOB_DEFAULT));
+
+    final TestContext testContext = testContextFactory.create();
+
+    HashMap<String, Object> params = new HashMap<>();
+    params.put(ParameterProvider.MIN_CHUNK_SIZE_IN_BYTES, 1L);
+    testContext.setParameterOverride(params);
+
+    ObservabilitySnowflakeStreamingIngestChannel channel =
+        addChannel(testContext, 1, 1);
+    channel.setupSchema(Lists.list(createLargeTestTextColumn("C1"), createObjectColumn("RESOURCE_ATTRIBUTES")));
+
+    for (int i = 0; i < numberOfRows; i++) {
+      channel.insertRow(buildRow("C1", i, i % expectedBlobs), "");
+    }
+
+    FlushService flushService = testContext.flushService;
+    flushService.flush(true).get();
+
+    ArgumentCaptor<List<List<ChannelData>>> blobDataCaptor =
+        ArgumentCaptor.forClass(List.class);
+    Mockito.verify(flushService, Mockito.times(expectedBlobs))
+        .buildAndUpload(Mockito.any(), blobDataCaptor.capture(), Mockito.any(), Mockito.any());
+
+    // 1. list => blobs; 2. list => chunks; 3. list => channels; 4. list => rows, 5. list => columns
+    List<List<List<ChannelData>>> allUploadedBlobs =
+        blobDataCaptor.getAllValues();
+
+    Assert.assertEquals(numberOfRows, getRows(allUploadedBlobs).size());
+  }
+
 
   /**
    * Insert rows in batches of 3 into each table and assert that the expected number of blobs is
@@ -789,7 +853,7 @@ public class ObservabilityFlushServiceTest {
       ObservabilitySnowflakeStreamingIngestChannel channel =
           addChannel(testContext, i / channelsPerTable, 1);
       channel.setupSchema(Collections.singletonList(createLargeTestTextColumn("C1")));
-      channel.insertRow(Collections.singletonMap("C1", i), "");
+      channel.insertRow(buildRow("C1", i), "");
     }
 
     FlushService flushService = testContext.flushService;
@@ -805,6 +869,26 @@ public class ObservabilityFlushServiceTest {
         blobDataCaptor.getAllValues();
 
     Assert.assertEquals(numberOfRows, getRows(allUploadedBlobs).size());
+  }
+
+  private Map<String, Object> buildRow(String columnName, int value) {
+    return buildRow(columnName, value, null);
+  }
+
+  private Map<String, Object> buildRow(String columnName, int value, Integer keyNum) {
+    HashMap<String, Object> row = new HashMap<>();
+    row.put(columnName, value);
+
+    if (keyNum != null) {
+      HashMap<String, Object> resource_attributes = new HashMap<>();
+      resource_attributes.put("service.namespace", String.valueOf(keyNum));
+      resource_attributes.put("service.name", String.valueOf(keyNum));
+      resource_attributes.put("snowflake.o11y.aggregator.cluster", String.valueOf(keyNum));
+
+      row.put("RESOURCE_ATTRIBUTES", resource_attributes);
+    }
+
+    return row;
   }
 
   @Test
