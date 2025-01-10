@@ -226,9 +226,11 @@ class SnowflakeStreamingIngestChannelInternal<T> implements SnowflakeStreamingIn
   @Override
   public List<ChannelData<T>> getData() {
     ChannelData<T> data = this.rowBuffer.flush();
-    if (data != null) {
-      data.setChannelContext(channelFlushContext);
+    if (data == null) {
+      return Collections.emptyList();
     }
+
+    data.setChannelContext(channelFlushContext);
     return Collections.singletonList(data);
   }
 
